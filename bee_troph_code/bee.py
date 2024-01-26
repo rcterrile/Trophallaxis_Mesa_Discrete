@@ -128,26 +128,22 @@ class Bee(mesa.Agent):
 
     def attempt_move(self):
         # update heading:
-        self.check_attraction()
-        # rv = rand.randrange(3)
-        # if rv == 0:
-        #     self.rotateCW()
-        # elif rv == 1:
-        #     self.rotateCCW()
-        # else:
-        #     pass
+        if self.check_attraction():     # Orient towards nearby agents
+            self.random_turn(True)
+        else:
+            self.random_turn(False)
         # self.updateHeading()     # add deviation to heading in range (+/- pi)
-        # check for blockers:
-        # self.getNeighbors(2)
-        neighborhood = self.model.grid.get_neighborhood(self.pos, False)
-        open_moves = []
-        for m in neighborhood:
-            open_moves.append(self.model.grid.is_cell_empty(m))
-        if np.sum(open_moves) < 1:
-            self.zero = True
-            return
-        possible_moves = [neighborhood[i] for i, x in enumerate(open_moves) if x]
-        self.move_to_open(possible_moves)
+        frw_position = (self.pos[0] + self.heading[0], self.pos[1] + self.heading[1])
+        if self.check_forward(frw_position):
+            self.model.grid.move_agent(self, frw_position)      # move forward if possible
+        else:
+            neighborhood = self.model.grid.get_neighborhood(self.pos, False)    # get neighborhood
+            open_moves = self.check_blockers(neighborhood)                      # check which neighborhood spots are blocked
+            if np.sum(open_moves) < 1:              # if no paths are open, then agent cannot move
+                self.zero = True
+                return
+            possible_moves = [neighborhood[i] for i, x in enumerate(open_moves) if x]       # get only the positions that are open
+            self.move_to_open(possible_moves)           # move agent to random neighbor positions (that is not blocked)
         # i = 0
         # while i < len(possible_moves):
         #     if not self.model.grid.is_cell_empty(possible_moves[i]):
@@ -163,6 +159,15 @@ class Bee(mesa.Agent):
     def setHeading(self, hd):   # hd = heading in radians
         self.hind = hd
         self.heading = globals.possible_headings[self.hind]
+
+    def random_turn(self, nomove):
+        rv = rand.randrange(3 - (not nomove))
+        if rv == 0:         # rotate clockwise
+            self.rotateCW()
+        elif rv == 1:       # rotate counter clockwise
+            self.rotateCCW()
+        else:               # don't rotate at all
+            pass
 
     def rotateCW(self):        # add noise to heading
         if self.hind == 3:
@@ -187,38 +192,53 @@ class Bee(mesa.Agent):
         else:
             self.model.grid.move_agent_to_one_of(self, pos_mvs)
 
-    def forward(self, pos_mvs):    # helper function for movement
-        # move to new position
-        new_position = (self.pos[0] + self.heading[0], self.pos[1] + self.heading[1])       # Calculate new position
-        if not self.model.grid.out_of_bounds(new_position) and self.model.grid.is_cell_empty(new_position):
-            self.model.grid.move_agent(self, new_position)         # set new position
-        else:
-            if len(pos_mvs) == 1:
-                self.model.grid.move_agent(self, pos_mvs)
-            else:
-                self.model.grid.move_agent_to_one_of(self, pos_mvs)
-    # forward()
+    # def forward(self, pos_mvs):    # helper function for movement
+    #     # move to new position
+    #     new_position = (self.pos[0] + self.heading[0], self.pos[1] + self.heading[1])       # Calculate new position
+    #     if not self.model.grid.out_of_bounds(new_position) and self.model.grid.is_cell_empty(new_position):
+    #         self.model.grid.move_agent(self, new_position)         # set new position
+    #     else:
+    #         if len(pos_mvs) == 1:
+    #             self.model.grid.move_agent(self, pos_mvs)
+    #         else:
+    #             self.model.grid.move_agent_to_one_of(self, pos_mvs)
+    # # forward()
 
     ###########################
     ##  Collision Handling:  ##
     ###########################
 
-    def check_blockers(self):       # essentially the same as in netlogo code
-        self.dist_to_blocks = []
-        for b in self.blockers:
-            if b.unique_id == self.unique_id:   # error check
-                print("BAD")
-            self.dist_to_blocks.append(self.get_distance_to_point(b.pos))
-            if self.dist_to_blocks[-1] > 0 and self.dist_to_blocks[-1] <= 0.9:
-                self.wrong = True       # error
-            elif self.dist_to_blocks[-1] <= 1.1 and self.dist_to_blocks[-1] > 0.9:
-                self.zero = True        # need to find new direction
-                self.zero_neighbors.append(b)
-            elif self.dist_to_blocks[-1] > 1.1 and self.dist_to_blocks[-1] <= 2:
-                self.small = True       # should take a small step
-            elif self.dist_to_blocks[-1] > 2:
-                self.ok = True          # can move one whole step
-    # check_blockers()
+    def check_forward(self, frw_pos):   # check if given spot is empty
+        if frw_pos[0] < 0 or frw_pos[0] >= self.model.width or frw_pos[1] < 0 or frw_pos[1] >= self.model.height:
+            return False
+        else:
+            return self.model.grid.is_cell_empty(frw_pos)   # ret: boolean
+
+    def check_blockers(self, neighborhood):
+        # returns boolean list cooresponding to the provided neighborhood
+        #  - True  : means position is open (not blocked)
+        #  - False : means position is blocked
+        open_moves = []
+        for m in neighborhood:
+            open_moves.append(self.model.grid.is_cell_empty(m))
+        return open_moves
+
+    # def check_blockers(self):       # essentially the same as in netlogo code
+    #     self.dist_to_blocks = []
+    #     for b in self.blockers:
+    #         if b.unique_id == self.unique_id:   # error check
+    #             print("BAD")
+    #         self.dist_to_blocks.append(self.get_distance_to_point(b.pos))
+    #         if self.dist_to_blocks[-1] > 0 and self.dist_to_blocks[-1] <= 0.9:
+    #             self.wrong = True       # error
+    #         elif self.dist_to_blocks[-1] <= 1.1 and self.dist_to_blocks[-1] > 0.9:
+    #             self.zero = True        # need to find new direction
+    #             self.zero_neighbors.append(b)
+    #         elif self.dist_to_blocks[-1] > 1.1 and self.dist_to_blocks[-1] <= 2:
+    #             self.small = True       # should take a small step
+    #         elif self.dist_to_blocks[-1] > 2:
+    #             self.ok = True          # can move one whole step
+    # # check_blockers()
 
     ##############################
     ##  Relation to Neighbors:  ##
@@ -269,22 +289,26 @@ class Bee(mesa.Agent):
         inds = [i for i in range(len(self.nearby_agents))]
         rand.shuffle(inds)
         i = 0
-        while self.dist_to_neighbors[i] < 2:
+        while self.dist_to_neighbors[inds[i]] < 2:
             i += 1
             if i == len(self.nearby_agents):
                 return False
-        dx = self.nearby_agents[i].pos[0] - self.pos[0]
-        dy = self.nearby_agents[i].pos[1] - self.pos[1]
+        dx = self.nearby_agents[inds[i]].pos[0] - self.pos[0]
+        dy = self.nearby_agents[inds[i]].pos[1] - self.pos[1]
         if np.abs(dx) <= np.abs(dy):
             if dy < 0:
                 self.heading = [0, -1]
+                self.hind = 0
             else:
                 self.heading = [0, 1]
+                self.hind = 2
         else:
             if dx < 0:
                 self.heading = [-1, 0]
+                self.hind = 1
             else:
                 self.heading = [1, 0]
+                self.hind = 3
         return True
     # check_attraction()
 
