@@ -34,19 +34,19 @@ neighbor_count = None
 block_count = None
 L = None
 
-possible_headings = [[1,0], [0,-1], [-1,0], [0,1]]
+run_counter = 0
 
-# Clustering:
-cluster_labels = None
-
-# range 0 - 2000
-# number_of_bees = 110
-
-# range 0 - 100
-# fraction_of_fed_bees = 10
-
-# Theta range 0 - 180
-theta = 180
-
-# range 0 - 10
-# attraction_radius = 2.5
+# # Clustering:
+# cluster_labels = None
+#
+# # range 0 - 2000
+# # number_of_bees = 110
+#
+# # range 0 - 100
+# # fraction_of_fed_bees = 10
+#
+# # Theta range 0 - 180
+# theta = 180
+#
+# # range 0 - 10
+# # attraction_radius = 2.5
